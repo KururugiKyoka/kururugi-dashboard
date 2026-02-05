@@ -1,6 +1,0 @@
-streamlit
-pandas
-fredapi
-plotly
-requests
-beautifulsoup4
