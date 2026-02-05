@@ -1,0 +1,30 @@
+name: Daily Macro Data Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 毎日午前9時(日本時間)に実行
+  workflow_dispatch: # 手動実行ボタンを表示
+
+jobs:
+  update_data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          pip install pandas fredapi
+      - name: Fetch data
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python data_fetcher.py
+      - name: Commit and Push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add canary_data.csv
+          git commit -m "Update macro data" || exit 0
+          git push
