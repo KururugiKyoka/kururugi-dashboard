@@ -7,26 +7,25 @@ import os
 from fredapi import Fred
 from datetime import datetime, timedelta
 
-# --- 1. 基本設定 ---
+# --- 基本設定 ---
 st.set_page_config(layout="wide", page_title="KURURUGI Pro", page_icon="🛡️")
 
-# スタイル調整（スマホで見やすく）
-st.markdown("""
-    <style>
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; font-size: 14px; }
-    </style>
-    """, unsafe_allow_stdio=True)
+# スマホで見やすくするためのスタイル
+st.markdown("""<style>.stTabs [data-baseweb="tab-list"] { gap: 8px; } .stTabs [data-baseweb="tab"] { height: 45px; font-size: 14px; }</style>""", unsafe_allow_html=True)
 
 # APIキー取得
 FRED_API_KEY = st.secrets.get("FRED_API_KEY") or os.getenv("FRED_API_KEY")
 fred = Fred(api_key=FRED_API_KEY)
 
 # 設定読み込み
-with open("config/indicators.yml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+if os.path.exists("config/indicators.yml"):
+    with open("config/indicators.yml", "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+else:
+    st.error("config/indicators.yml が見つかりません")
+    st.stop()
 
-# --- 2. サイドバー操作 ---
+# --- サイドバー操作 ---
 st.sidebar.title("⚙️ Settings")
 timeframe = st.sidebar.radio("時間足", ("日足 (Daily)", "週足 (Weekly)", "月足 (Monthly)"), index=2)
 period_years = st.sidebar.slider("表示期間 (年)", 1, 5, 2)
@@ -34,7 +33,7 @@ period_years = st.sidebar.slider("表示期間 (年)", 1, 5, 2)
 freq_map = {"日足 (Daily)": "D", "週足 (Weekly)": "W", "月足 (Monthly)": "MS"}
 target_freq = freq_map[timeframe]
 
-# --- 3. データ取得 (キャッシュ活用) ---
+# --- データ取得 (キャッシュ活用) ---
 @st.cache_data(ttl=3600)
 def load_all_data(indicators):
     data_dict = {}
@@ -47,15 +46,13 @@ def load_all_data(indicators):
 
 all_data = load_all_data(config['indicators'])
 
-# --- 4. 描画関数 ---
+# --- 描画関数 ---
 def draw_charts(labels):
     for label in labels:
         if label not in all_data: continue
-        
         series = all_data[label].resample(target_freq).last().ffill()
         shift = 12 if target_freq=="MS" else 52 if target_freq=="W" else 365
         
-        # 前年比計算
         if "Curve" in label:
             yoy = series - series.shift(shift)
             yoy_name = "YoY Diff"
@@ -67,10 +64,8 @@ def draw_charts(labels):
         s, y = series[series.index >= display_start], yoy[yoy.index >= display_start]
 
         fig = make_subplots(rows=1, cols=2, subplot_titles=(f"{label}", f"{yoy_name}"))
-        
-        # 水準 (Line) - Scatterglで高速化
+        # Scattergl で描画を高速化（スマホ対策）
         fig.add_trace(go.Scattergl(x=s.index, y=s, name="Level", line=dict(color='#00ffcc', width=2)), row=1, col=1)
-        # 前年比 (Bar)
         fig.add_trace(go.Bar(x=y.index, y=y, name="YoY", marker_color='#ff66cc', opacity=0.8), row=1, col=2)
         
         if "Curve" in label:
@@ -78,19 +73,17 @@ def draw_charts(labels):
             fig.add_hrect(y0=-1, y1=0, fillcolor="red", opacity=0.15, row=1, col=1)
 
         fig.update_layout(height=350, showlegend=False, template="plotly_dark", margin=dict(l=10, r=10, t=40, b=10))
-        # 警告対策: use_container_width=True を維持（最新版でもこれが標準）
+        # Image 10 の警告を回避するため最新形式で記述
         st.plotly_chart(fig, use_container_width=True)
 
-# --- 5. メイン画面 (タブ分け) ---
+# --- メイン画面 (タブ分け) ---
 st.title("🛡️ KURURUGI Macro Dashboard")
 
 tab1, tab2, tab3 = st.tabs(["🔥 物価・消費", "👥 雇用・生産", "💹 市場・金利"])
 
 with tab1:
     draw_charts(["消費者物価指数 (CPI)", "PCE デフレーター", "小売売上高", "ミシガン大学消費者態度指数"])
-
 with tab2:
     draw_charts(["非農業部門雇用者数 (NFP)", "失業率", "鉱工業生産指数 (INDPRO)", "新規失業保険申請件数 (Claims)"])
-
 with tab3:
     draw_charts(["米10年-2年金利差 (Yield Curve)", "実効ドル相場 (Broad USD Index)", "WTI原油価格 (Oil)", "S&P 500 指数"])
