@@ -7,17 +7,13 @@ import os
 from fredapi import Fred
 from datetime import datetime, timedelta
 
-# --- 基本設定 ---
 st.set_page_config(layout="wide", page_title="KURURUGI Pro", page_icon="🛡️")
 
-# スマホで見やすくするためのスタイル
 st.markdown("""<style>.stTabs [data-baseweb="tab-list"] { gap: 8px; } .stTabs [data-baseweb="tab"] { height: 45px; font-size: 14px; }</style>""", unsafe_allow_html=True)
 
-# APIキー取得
 FRED_API_KEY = st.secrets.get("FRED_API_KEY") or os.getenv("FRED_API_KEY")
 fred = Fred(api_key=FRED_API_KEY)
 
-# 設定読み込み
 if os.path.exists("config/indicators.yml"):
     with open("config/indicators.yml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
@@ -25,7 +21,6 @@ else:
     st.error("config/indicators.yml が見つかりません")
     st.stop()
 
-# --- サイドバー操作 ---
 st.sidebar.title("⚙️ Settings")
 timeframe = st.sidebar.radio("時間足", ("日足 (Daily)", "週足 (Weekly)", "月足 (Monthly)"), index=2)
 period_years = st.sidebar.slider("表示期間 (年)", 1, 5, 2)
@@ -33,7 +28,6 @@ period_years = st.sidebar.slider("表示期間 (年)", 1, 5, 2)
 freq_map = {"日足 (Daily)": "D", "週足 (Weekly)": "W", "月足 (Monthly)": "MS"}
 target_freq = freq_map[timeframe]
 
-# --- データ取得 (キャッシュ活用) ---
 @st.cache_data(ttl=3600)
 def load_all_data(indicators):
     data_dict = {}
@@ -46,7 +40,6 @@ def load_all_data(indicators):
 
 all_data = load_all_data(config['indicators'])
 
-# --- 描画関数 ---
 def draw_charts(labels):
     for label in labels:
         if label not in all_data: continue
@@ -64,7 +57,6 @@ def draw_charts(labels):
         s, y = series[series.index >= display_start], yoy[yoy.index >= display_start]
 
         fig = make_subplots(rows=1, cols=2, subplot_titles=(f"{label}", f"{yoy_name}"))
-        # Scattergl で描画を高速化（スマホ対策）
         fig.add_trace(go.Scattergl(x=s.index, y=s, name="Level", line=dict(color='#00ffcc', width=2)), row=1, col=1)
         fig.add_trace(go.Bar(x=y.index, y=y, name="YoY", marker_color='#ff66cc', opacity=0.8), row=1, col=2)
         
@@ -73,10 +65,9 @@ def draw_charts(labels):
             fig.add_hrect(y0=-1, y1=0, fillcolor="red", opacity=0.15, row=1, col=1)
 
         fig.update_layout(height=350, showlegend=False, template="plotly_dark", margin=dict(l=10, r=10, t=40, b=10))
-        # Image 10 の警告を回避するため最新形式で記述
-        st.plotly_chart(fig, use_container_width=True)
+        # 2026年最新仕様に統一
+        st.plotly_chart(fig, width="stretch")
 
-# --- メイン画面 (タブ分け) ---
 st.title("🛡️ KURURUGI Macro Dashboard")
 
 tab1, tab2, tab3 = st.tabs(["🔥 物価・消費", "👥 雇用・生産", "💹 市場・金利"])
