@@ -1,6 +1,5 @@
 streamlit
+plotly
 pandas
 fredapi
-plotly
-requests
-beautifulsoup4
+pyyaml
