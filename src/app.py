@@ -9,8 +9,15 @@ from datetime import datetime, timedelta
 # --- 1. 基本設定 ---
 st.set_page_config(layout="wide", page_title="KURURUGI Pro", page_icon="🛡️")
 
-# スマホで見やすくするためのスタイル（タブのフォント調整）
-st.markdown("""<style>.stTabs [data-baseweb="tab-list"] { gap: 8px; } .stTabs [data-baseweb="tab"] { height: 45px; font-size: 14px; }</style>""", unsafe_allow_html=True)
+# スマホ最適化CSS: 余白の削減とタブの調整
+st.markdown("""
+    <style>
+    .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+    .stTabs [data-baseweb="tab"] { height: 40px; font-size: 13px; padding: 0px 10px; }
+    [data-testid="stVerticalBlock"] > div { padding: 0px; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # APIキー取得
 FRED_API_KEY = st.secrets.get("FRED_API_KEY") or os.getenv("FRED_API_KEY")
@@ -28,7 +35,7 @@ period_years = st.sidebar.slider("表示期間 (年)", 1, 5, 2)
 freq_map = {"日足 (Daily)": "D", "週足 (Weekly)": "W", "月足 (Monthly)": "MS"}
 target_freq = freq_map[timeframe]
 
-# --- 3. データ取得 (キャッシュ活用) ---
+# --- 3. データ取得 ---
 @st.cache_data(ttl=3600)
 def load_all_data(indicators):
     data_dict = {}
@@ -41,7 +48,7 @@ def load_all_data(indicators):
 
 all_data = load_all_data(config['indicators'])
 
-# --- 4. 描画関数 (スマホ対応版) ---
+# --- 4. 描画関数 (スマホ最適化) ---
 def draw_adaptive_charts(labels):
     for label in labels:
         if label not in all_data: continue
@@ -60,24 +67,41 @@ def draw_adaptive_charts(labels):
         display_start = datetime.now() - timedelta(days=period_years*365)
         s, y = series[series.index >= display_start], yoy[yoy.index >= display_start]
 
-        # 🚀 ポイント: Streamlitのcolumnsを使う (スマホでは自動で縦に積まれる)
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            fig_l = go.Figure()
-            fig_l.add_trace(go.Scattergl(x=s.index, y=s, name="Level", line=dict(color='#00ffcc', width=2)))
-            fig_l.update_layout(title=f"{label} (Level)", height=300, template="plotly_dark", margin=dict(l=10, r=10, t=40, b=10))
-            if "Curve" in label: fig_l.add_hline(y=0, line_dash="dash")
-            st.plotly_chart(fig_l, width="stretch")
+        # コンテナで一つの指標をグルーピング
+        with st.container():
+            st.markdown(f"### {label}")
+            c1, c2 = st.columns(2)
             
-        with c2:
-            fig_y = go.Figure()
-            fig_y.add_trace(go.Bar(x=y.index, y=y, name="YoY", marker_color='#ff66cc', opacity=0.8))
-            fig_y.update_layout(title=f"{label} ({yoy_label})", height=300, template="plotly_dark", margin=dict(l=10, r=10, t=40, b=10))
-            st.plotly_chart(fig_y, width="stretch")
+            with c1:
+                fig_l = go.Figure()
+                fig_l.add_trace(go.Scattergl(x=s.index, y=s, line=dict(color='#00ffcc', width=2)))
+                fig_l.update_layout(
+                    title=dict(text="Level", font=dict(size=12)),
+                    height=250, # 高さを抑えてスマホでの一覧性を向上
+                    template="plotly_dark",
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis=dict(tickfont=dict(size=10)),
+                    yaxis=dict(tickfont=dict(size=10))
+                )
+                if "Curve" in label: fig_l.add_hline(y=0, line_dash="dash")
+                st.plotly_chart(fig_l, use_container_width=True, config={'displayModeBar': False})
+                
+            with c2:
+                fig_y = go.Figure()
+                fig_y.add_trace(go.Bar(x=y.index, y=y, marker_color='#ff66cc', opacity=0.8))
+                fig_y.update_layout(
+                    title=dict(text=yoy_label, font=dict(size=12)),
+                    height=250,
+                    template="plotly_dark",
+                    margin=dict(l=10, r=10, t=30, b=10),
+                    xaxis=dict(tickfont=dict(size=10)),
+                    yaxis=dict(tickfont=dict(size=10))
+                )
+                st.plotly_chart(fig_y, use_container_width=True, config={'displayModeBar': False})
+            st.markdown("---") # 指標ごとの区切り線
 
 # --- 5. メイン表示 ---
-st.title("🛡️ KURURUGI Macro Dashboard")
+st.title("🛡️ KURURUGI Pro")
 
 t1, t2, t3 = st.tabs(["🔥 物価・消費", "👥 雇用・生産", "💹 市場・金利"])
 
